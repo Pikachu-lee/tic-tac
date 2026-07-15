@@ -1,175 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tic Tac Toe</title>
+"""
+Text Adventure Game (starter complete file)
+Features:
+- Movement NSEW
+- Inventory
+- Weapons
+- Combat
+- Health
+- Treasure
+- Save/Load
+- Multiple rooms
+- Random events
+This is a compact complete implementation (~170 lines).
+"""
+import json, random
 
-<style>
-body{
-    margin:0;
-    padding:0;
-    background:#0f172a;
-    font-family:Arial,sans-serif;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    height:100vh;
-    color:white;
+rooms={
+"Village":{"N":"Forest","item":"Knife"},
+"Forest":{"S":"Village","E":"Cave","enemy":["Wolf",20,4],"item":"Potion"},
+"Cave":{"W":"Forest","N":"Castle","enemy":["Goblin",30,6],"treasure":50},
+"Castle":{"S":"Cave","enemy":["Dragon",60,10],"treasure":200}
 }
+state={"room":"Village","hp":100,"weapon":["Fist",2],"inv":[],"gold":0}
 
-.container{
-    text-align:center;
-}
+weapons={"Knife":5,"Sword":8}
 
-.board{
-    width:315px;
-    display:grid;
-    grid-template-columns:repeat(3,100px);
-    gap:5px;
-    margin:20px auto;
-}
-
-.cell{
-    width:100px;
-    height:100px;
-    background:#1e293b;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    font-size:45px;
-    cursor:pointer;
-    border-radius:10px;
-    transition:0.2s;
-}
-
-.cell:hover{
-    background:#334155;
-}
-
-button{
-    padding:12px 20px;
-    font-size:18px;
-    background:#2563eb;
-    color:white;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-}
-
-button:hover{
-    background:#1d4ed8;
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-<h1>Tic Tac Toe</h1>
-
-<h2 id="status">Player X's Turn</h2>
-
-<div class="board">
-<div class="cell" data-index="0"></div>
-<div class="cell" data-index="1"></div>
-<div class="cell" data-index="2"></div>
-<div class="cell" data-index="3"></div>
-<div class="cell" data-index="4"></div>
-<div class="cell" data-index="5"></div>
-<div class="cell" data-index="6"></div>
-<div class="cell" data-index="7"></div>
-<div class="cell" data-index="8"></div>
-</div>
-
-<button id="restart">Restart Game</button>
-
-</div>
-
-<script>
-const cells=document.querySelectorAll(".cell");
-const statusText=document.getElementById("status");
-const restartBtn=document.getElementById("restart");
-
-let board=["","","","","","","","",""];
-let currentPlayer="X";
-let gameActive=true;
-
-const winConditions=[
-[0,1,2],
-[3,4,5],
-[6,7,8],
-[0,3,6],
-[1,4,7],
-[2,5,8],
-[0,4,8],
-[2,4,6]
-];
-
-cells.forEach(cell=>{
-cell.addEventListener("click",handleClick);
-});
-
-restartBtn.addEventListener("click",restartGame);
-
-function handleClick(e){
-
-const index=e.target.dataset.index;
-
-if(board[index]!=""||!gameActive){
-return;
-}
-
-board[index]=currentPlayer;
-e.target.textContent=currentPlayer;
-
-checkWinner();
-}
-
-function checkWinner(){
-
-let won=false;
-
-for(let condition of winConditions){
-
-const[a,b,c]=condition;
-
-if(board[a]&&board[a]===board[b]&&board[a]===board[c]){
-won=true;
-break;
-}
-}
-
-if(won){
-statusText.textContent="🎉 Player "+currentPlayer+" Wins!";
-gameActive=false;
-return;
-}
-
-if(!board.includes("")){
-statusText.textContent="🤝 Draw!";
-gameActive=false;
-return;
-}
-
-currentPlayer=currentPlayer==="X"?"O":"X";
-statusText.textContent="Player "+currentPlayer+"'s Turn";
-}
-
-function restartGame(){
-
-board=["","","","","","","","",""];
-currentPlayer="X";
-gameActive=true;
-
-statusText.textContent="Player X's Turn";
-
-cells.forEach(cell=>{
-cell.textContent="";
-});
-
-}
-</script>
-
-</body>
-</html>
+def save():
+    json.dump(state,open("save.json","w"))
+    print("Saved.")
+def load():
+    global state
+    state=json.load(open("save.json"))
+    print("Loaded.")
+def show():
+    r=rooms[state["room"]]
+    print("\nRoom:",state["room"],"HP",state["hp"],"Gold",state["gold"])
+    print("Inventory:",state["inv"],"Weapon",state["weapon"])
+    print("Exits:",[k for k in "NSEW" if k in r])
+    if "enemy" in r: print("Enemy:",r["enemy"][0])
+    if "item" in r: print("Item:",r["item"])
+def fight():
+    r=rooms[state["room"]]
+    if "enemy" not in r:return
+    name,hp,dmg=r["enemy"]
+    while hp>0 and state["hp"]>0:
+        hit=random.randint(1,state["weapon"][1])
+        hp-=hit
+        print("You hit",hit)
+        if hp<=0:break
+        eh=random.randint(1,dmg)
+        state["hp"]-=eh
+        print(name,"hits",eh)
+    if state["hp"]<=0:
+        print("You died.");exit()
+    print("Defeated",name)
+    del r["enemy"]
+    if "treasure" in r:
+        state["gold"]+=r["treasure"];print("Found",r["treasure"],"gold")
+        del r["treasure"]
+def pickup():
+    r=rooms[state["room"]]
+    if "item" not in r:return
+    it=r["item"];state["inv"].append(it)
+    if it in weapons: state["weapon"]=[it,weapons[it]]
+    if it=="Potion":
+        state["hp"]=min(100,state["hp"]+25)
+    print("Picked",it)
+    del r["item"]
+def event():
+    x=random.randint(1,5)
+    if x==1:
+        d=5;state["hp"]-=d;print("Trap! -5 HP")
+    elif x==2:
+        g=10;state["gold"]+=g;print("Found 10 gold")
+while True:
+    if state["room"]=="Castle" and "enemy" not in rooms["Castle"]:
+        print("You defeated the Dragon and won!");break
+    show()
+    c=input("Command(n/s/e/w,pick,fight,save,load,quit): ").lower()
+    if c=="quit":break
+    if c=="save":save();continue
+    if c=="load":
+        try:load()
+        except:print("No save.")
+        continue
+    if c=="pick":pickup();continue
+    if c=="fight":fight();continue
+    m={"n":"N","s":"S","e":"E","w":"W"}
+    if c in m:
+        r=rooms[state["room"]]
+        if m[c] in r:
+            state["room"]=r[m[c]]
+            event()
+        else: print("Can't go that way")

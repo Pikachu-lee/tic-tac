@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Bike Rider</title>
+    <title>Retro Arcade: 2-in-1 Game Center</title>
     <style>
         * {
             margin: 0;
@@ -11,7 +11,7 @@
             box-sizing: border-box;
         }
         body {
-            background-color: #1a1a2e;
+            background-color: #11111d;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
@@ -19,16 +19,58 @@
             min-height: 100vh;
             overflow: hidden;
             flex-direction: column;
+            color: #ffffff;
+        }
+        #arcade-shell {
+            background-color: #1a1a2e;
+            border: 6px double #444466;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7), inset 0 0 20px rgba(0,255,204,0.1);
+            max-width: 850px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+            justify-content: center;
+        }
+        .tab-btn {
+            background: #2e2e50;
+            border: 2px solid #444466;
+            color: #8888aa;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            background: #3a3a66;
+            color: #fff;
+        }
+        .tab-btn.active {
+            background: linear-gradient(45deg, #ff0055, #00ffcc);
+            color: #000;
+            border-color: #fff;
+            box-shadow: 0 0 15px rgba(0,255,204,0.4);
         }
         #game-container {
             position: relative;
             width: 800px;
             height: 400px;
             background-color: #000;
-            border: 4px solid #333;
+            border: 4px solid #222;
             overflow: hidden;
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 6px;
         }
         canvas {
             display: block;
@@ -94,12 +136,13 @@
             transform: scale(1.05);
             box-shadow: 0 0 25px rgba(0,255,204,0.8);
         }
-        .instructions {
+        #instructions-panel {
             margin-top: 20px;
             color: #a0a0c0;
             font-size: 14px;
             text-align: center;
             line-height: 1.6;
+            min-height: 45px;
         }
         .key {
             background: #2e2e50;
@@ -113,181 +156,145 @@
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="ui-layer">
-            <div>SCORE: <span id="ui-score">00000</span></div>
-            <div>SPEED: <span id="ui-speed">0</span> KM/H</div>
+    <div id="arcade-shell">
+        <div id="game-selector">
+            <button class="tab-btn active" id="tab-dino" onclick="switchGame('dino')">🦖 Dinosaur Run</button>
+            <button class="tab-btn" id="tab-bike" onclick="switchGame('bike')">🏍️ Bike Rider</button>
         </div>
-        <canvas id="gameCanvas" width="800" height="400"></canvas>
-        
-        <div id="game-over-screen">
-            <h1>CRASH DETECTED</h1>
-            <div id="final-stats"></div>
-            <button id="restart-btn">Drive Again</button>
-        </div>
-    </div>
 
-    <div class="instructions">
-        Press <span class="key">← Arrow</span> or <span class="key">A</span> to move Left. 
-        Press <span class="key">→ Arrow</span> or <span class="key">D</span> to move Right.<br>
-        Hold <span class="key">↑ Arrow</span> or <span class="key">W</span> to Accelerate. Avoid the oncoming traffic!
+        <div id="game-container">
+            <div id="ui-layer">
+                <div id="ui-left">SCORE: <span id="ui-score">00000</span></div>
+                <div id="ui-right">HI SCORE: <span id="ui-high">00000</span></div>
+            </div>
+            <canvas id="gameCanvas" width="800" height="400"></canvas>
+            
+            <div id="game-over-screen">
+                <h1 id="game-over-title">GAME OVER</h1>
+                <div id="final-stats"></div>
+                <button id="restart-btn">PLAY AGAIN</button>
+            </div>
+        </div>
+
+        <div id="instructions-panel"></div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const uiScore = document.getElementById('ui-score');
-        const uiSpeed = document.getElementById('ui-speed');
+        const uiLeft = document.getElementById('ui-left');
+        const uiRight = document.getElementById('ui-right');
         const gameOverScreen = document.getElementById('game-over-screen');
+        const gameOverTitle = document.getElementById('game-over-title');
         const finalStats = document.getElementById('final-stats');
         const restartBtn = document.getElementById('restart-btn');
+        const instructionsPanel = document.getElementById('instructions-panel');
 
-        // State variables
+        // Engine State Configurations
+        let activeGame = 'dino'; 
         let score = 0;
-        let baseSpeed = 4;
-        let playerSpeedModifier = 0;
-        let currentSpeedKmh = 0;
+        let dinoHighScore = 0;
+        let bikeHighScore = 0;
         let isGameOver = false;
         let isRunning = false;
-        let currentTrackOffset = 0;
-
-        let vehicles = [];
+        
+        // Physics Engine Shared Variables
+        let gameSpeed = 6;
+        let lastSpawnTime = 0;
+        let lastCloudTime = 0;
+        let trackOffset = 0;
+        let obstacles = [];
+        let clouds = [];
         let particles = [];
-        let lastVehicleSpawn = 0;
 
-        // Lane definitions (Pseud-3D Road perspective layout mapping)
-        const totalLanes = 3;
-        const laneWidths =; // Base widths for lanes
-
+        // Controller input buffers
         const keys = {};
         window.addEventListener('keydown', e => {
-            if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "s", "a", "d"].includes(e.key.toLowerCase())) {
+            const keyLower = e.key.toLowerCase();
+            if (["space", "arrowup", "arrowdown", "arrowleft", "arrowright", "w", "s", "a", "d", " "].includes(keyLower)) {
                 e.preventDefault();
             }
-            keys[e.key.toLowerCase()] = true;
-            if (!isRunning && !isGameOver) isRunning = true;
+            keys[keyLower] = true;
+            
+            if (!isRunning && !isGameOver) {
+                if (activeGame === 'dino' && (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w')) {
+                    isRunning = true;
+                } else if (activeGame === 'bike') {
+                    isRunning = true;
+                }
+            }
         });
         window.addEventListener('keyup', e => {
             keys[e.key.toLowerCase()] = false;
         });
 
-        // Player Entity (Motorbike)
-        const player = {
-            x: canvas.width / 2,
-            y: canvas.height - 75,
-            width: 30,
-            height: 60,
-            sideSpeed: 5,
-            targetX: canvas.width / 2,
+        // --- ENTIRE GAME DATA OBJECTS ---
+        
+        // T-Rex Character Structure
+        const dino = {
+            x: 60,
+            y: 280,
+            width: 44,
+            height: 47,
+            originalHeight: 47,
+            duckHeight: 28,
+            gravity: 0.6,
+            velocity: 0,
+            jumpForce: -12,
+            isGrounded: true,
+            isDucking: false,
+            legToggle: true,
+            frameTimer: 0,
 
             update() {
-                // Acceleration handling
-                if (keys['arrowup'] || keys['w']) {
-                    playerSpeedModifier = Math.min(playerSpeedModifier + 0.1, 6);
+                if (keys['arrowdown'] || keys['s']) {
+                    this.isDucking = true;
+                    this.height = this.duckHeight;
                 } else {
-                    playerSpeedModifier = Math.max(playerSpeedModifier - 0.1, 0);
-                }
-                
-                currentSpeedKmh = Math.floor((baseSpeed + playerSpeedModifier) * 22);
-
-                // Lane movements
-                if (keys['arrowleft'] || keys['a']) {
-                    this.x -= this.sideSpeed;
-                }
-                if (keys['arrowright'] || keys['d']) {
-                    this.x += this.sideSpeed;
+                    this.isDucking = false;
+                    this.height = this.originalHeight;
                 }
 
-                // Keep bike on the tarmac boundaries
-                const roadLeftBound = 160;
-                const roadRightBound = canvas.width - 160;
-                if (this.x < roadLeftBound) this.x = roadLeftBound;
-                if (this.x > roadRightBound) this.x = roadRightBound;
-
-                // Spawn exhaust particles if moving fast
-                if (currentSpeedKmh > 50 && Math.random() > 0.4) {
-                    particles.push(new Particle(this.x, this.y + this.height - 5, '#00ffcc'));
+                if ((keys[' '] || keys['arrowup'] || keys['w']) && this.isGrounded && !this.isDucking) {
+                    this.velocity = this.jumpForce;
+                    this.isGrounded = false;
                 }
+
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+
+                const groundLevel = 330 - this.height;
+                if (this.y >= groundLevel) {
+                    this.y = groundLevel;
+                    this.velocity = 0;
+                    this.isGrounded = true;
+                }
+
+                this.frameTimer++;
+                if (this.frameTimer % 8 === 0) this.legToggle = !this.legToggle;
             },
 
             draw() {
+                ctx.fillStyle = '#535353';
                 ctx.save();
                 ctx.translate(this.x, this.y);
 
-                // Bike Frame Shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-                ctx.fillRect(-10, 10, 20, 55);
+                if (!this.isDucking) {
+                    ctx.fillRect(10, 12, 24, 20); // Torso
+                    ctx.fillRect(22, 0, 22, 14);  // Head
+                    ctx.fillStyle = isGameOver ? '#535353' : '#ffffff'; 
+                    if (isGameOver) {
+                        ctx.fillRect(26, 3, 5, 2); ctx.fillRect(27, 2, 3, 4);
+                    } else {
+                        ctx.fillRect(26, 3, 3, 3);
+                    }
+                    ctx.fillStyle = '#535353';
+                    ctx.fillRect(22, 14, 12, 3);   // Mouth snout
+                    ctx.fillRect(34, 18, 6, 3);    // Small arm
+                    ctx.fillRect(0, 16, 10, 10);   // Upper tail
+                    ctx.fillRect(4, 26, 6, 4);     // Lower tail
 
-                // Main Frame Body
-                ctx.fillStyle = '#ff0055';
-                ctx.fillRect(-6, 10, 12, 40); // Body core
-
-                // Tires (Front & Back)
-                ctx.fillStyle = '#111';
-                ctx.fillRect(-4, 0, 8, 14); // Front Wheel
-                ctx.fillRect(-5, 42, 10, 18); // Back Wheel
-
-                // Handlebars
-                ctx.fillStyle = '#333';
-                ctx.fillRect(-15, 12, 30, 4);
-                ctx.fillStyle = '#00ffcc'; // Glowing handles
-                ctx.fillRect(-17, 12, 3, 4);
-                ctx.fillRect(14, 12, 3, 4);
-
-                // Rider Engine Cover / Details
-                ctx.fillStyle = '#ffde00';
-                ctx.fillRect(-4, 20, 8, 12);
-                
-                // Neon Tail lights
-                ctx.fillStyle = '#ff0000';
-                ctx.fillRect(-4, 52, 8, 3);
-
-                ctx.restore();
-            }
-        };
-
-        // Oncoming Traffic Class
-        class Vehicle {
-            constructor() {
-                // Randomly place into one of three designated horizontal road areas
-                const lanes =;
-                this.x = lanes[Math.floor(Math.random() * lanes.length)] + (Math.random() * 20 - 10);
-                this.y = -80;
-                this.width = 45;
-                this.height = 75;
-                this.speed = Math.random() * 2 + 2;
-                
-                const colors = ['#0077ff', '#9b5de5', '#f15bb5', '#fee440', '#00f5d4'];
-                this.color = colors[Math.floor(Math.random() * colors.length)];
-            }
-
-            update(globalSpeed) {
-                this.y += this.speed + (globalSpeed * 0.7); // Relative velocity simulation
-            }
-
-            draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-
-                // Vehicle Shadows
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.fillRect(-this.width/2 + 4, 6, this.width, this.height);
-
-                // Base Body Shell
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-this.width/2, 0, this.width, this.height);
-
-                // Windshield window grids
-                ctx.fillStyle = '#222';
-                ctx.fillRect(-this.width/2 + 4, 15, this.width - 8, 12); // Front window
-                ctx.fillRect(-this.width/2 + 4, 50, this.width - 8, 10); // Rear window
-
-                // Headlights
-                ctx.fillStyle = '#ffffaa';
-                ctx.fillRect(-this.width/2 + 3, this.height - 4, 6, 4);
-                ctx.fillRect(this.width/2 - 9, this.height - 4, 6, 4);
-
-                ctx.restore();
-            }
-        }
-
+                    if (isGameOver) {
+                        ctx.fillRect(14, 32, 4, 15); ctx.fillRect(26, 32, 4, 15);
+                    } else if (this.isGrounded) {
+                        if (this.legToggle) {

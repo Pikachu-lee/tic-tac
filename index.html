@@ -1,94 +1,290 @@
-"""
-Text Adventure Game (starter complete file)
-Features:
-- Movement NSEW
-- Inventory
-- Weapons
-- Combat
-- Health
-- Treasure
-- Save/Load
-- Multiple rooms
-- Random events
-This is a compact complete implementation (~170 lines).
-"""
-import json, random
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T-Rex Dinosaur Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #f7f7f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 250px;
+            background-color: #ffffff;
+            border-bottom: 2px solid #535353;
+            overflow: hidden;
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        canvas {
+            display: block;
+        }
+        #score-board {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-family: monospace;
+            font-size: 18px;
+            color: #535353;
+            font-weight: bold;
+        }
+        #game-over-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.85);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        #game-over-screen h1 {
+            color: #535353;
+            font-size: 32px;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            font-family: monospace;
+        }
+        #restart-btn {
+            padding: 10px 22px;
+            background-color: #535353;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        #restart-btn:hover {
+            background-color: #333333;
+        }
+        .instructions {
+            margin-top: 20px;
+            color: #777777;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .key {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #333;
+            border-bottom: 2px solid #b5b5b5;
+        }
+    </style>
+</head>
+<body>
 
-rooms={
-"Village":{"N":"Forest","item":"Knife"},
-"Forest":{"S":"Village","E":"Cave","enemy":["Wolf",20,4],"item":"Potion"},
-"Cave":{"W":"Forest","N":"Castle","enemy":["Goblin",30,6],"treasure":50},
-"Castle":{"S":"Cave","enemy":["Dragon",60,10],"treasure":200}
-}
-state={"room":"Village","hp":100,"weapon":["Fist",2],"inv":[],"gold":0}
+    <div id="game-container">
+        <div id="score-board">HI <span id="high-score">00000</span> &nbsp; <span id="current-score">00000</span></div>
+        <canvas id="gameCanvas" width="800" height="250"></canvas>
+        
+        <div id="game-over-screen">
+            <h1>G A M E &nbsp; O V E R</h1>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
 
-weapons={"Knife":5,"Sword":8}
+    <div class="instructions">
+        Press <span class="key">Spacebar</span> or <span class="key">↑ Arrow</span> to Jump. <br>
+        Press <span class="key">↓ Arrow</span> to Duck.
+    </div>
 
-def save():
-    json.dump(state,open("save.json","w"))
-    print("Saved.")
-def load():
-    global state
-    state=json.load(open("save.json"))
-    print("Loaded.")
-def show():
-    r=rooms[state["room"]]
-    print("\nRoom:",state["room"],"HP",state["hp"],"Gold",state["gold"])
-    print("Inventory:",state["inv"],"Weapon",state["weapon"])
-    print("Exits:",[k for k in "NSEW" if k in r])
-    if "enemy" in r: print("Enemy:",r["enemy"][0])
-    if "item" in r: print("Item:",r["item"])
-def fight():
-    r=rooms[state["room"]]
-    if "enemy" not in r:return
-    name,hp,dmg=r["enemy"]
-    while hp>0 and state["hp"]>0:
-        hit=random.randint(1,state["weapon"][1])
-        hp-=hit
-        print("You hit",hit)
-        if hp<=0:break
-        eh=random.randint(1,dmg)
-        state["hp"]-=eh
-        print(name,"hits",eh)
-    if state["hp"]<=0:
-        print("You died.");exit()
-    print("Defeated",name)
-    del r["enemy"]
-    if "treasure" in r:
-        state["gold"]+=r["treasure"];print("Found",r["treasure"],"gold")
-        del r["treasure"]
-def pickup():
-    r=rooms[state["room"]]
-    if "item" not in r:return
-    it=r["item"];state["inv"].append(it)
-    if it in weapons: state["weapon"]=[it,weapons[it]]
-    if it=="Potion":
-        state["hp"]=min(100,state["hp"]+25)
-    print("Picked",it)
-    del r["item"]
-def event():
-    x=random.randint(1,5)
-    if x==1:
-        d=5;state["hp"]-=d;print("Trap! -5 HP")
-    elif x==2:
-        g=10;state["gold"]+=g;print("Found 10 gold")
-while True:
-    if state["room"]=="Castle" and "enemy" not in rooms["Castle"]:
-        print("You defeated the Dragon and won!");break
-    show()
-    c=input("Command(n/s/e/w,pick,fight,save,load,quit): ").lower()
-    if c=="quit":break
-    if c=="save":save();continue
-    if c=="load":
-        try:load()
-        except:print("No save.")
-        continue
-    if c=="pick":pickup();continue
-    if c=="fight":fight();continue
-    m={"n":"N","s":"S","e":"E","w":"W"}
-    if c in m:
-        r=rooms[state["room"]]
-        if m[c] in r:
-            state["room"]=r[m[c]]
-            event()
-        else: print("Can't go that way")
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('current-score');
+        const highScoreElement = document.getElementById('high-score');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // Game Constants & Variables
+        let gameSpeed = 6;
+        let score = 0;
+        let highScore = 0;
+        let isGameOver = false;
+        let gameStarted = false;
+        let obstacles = [];
+        let clouds = [];
+        let lastObstacleTime = 0;
+        let lastCloudTime = 0;
+
+        // Input Tracking
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            if (["Space", "ArrowUp", "ArrowDown", " "].includes(e.key)) {
+                e.preventDefault(); 
+            }
+            keys[e.key] = true;
+            
+            if (!gameStarted && (e.key === ' ' || e.key === 'ArrowUp')) {
+                startGame();
+            }
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.key] = false;
+        });
+
+        // Object: T-Rex
+        const dino = {
+            x: 50,
+            y: 190,
+            width: 44,
+            height: 47,
+            originalHeight: 47,
+            duckHeight: 28,
+            gravity: 0.6,
+            velocity: 0,
+            jumpForce: -12,
+            isGrounded: true,
+            isDucking: false,
+            legToggle: true,
+            frameTimer: 0,
+
+            update() {
+                // Duck logic
+                if (keys['ArrowDown'] && this.isGrounded) {
+                    this.isDucking = true;
+                    this.height = this.duckHeight;
+                } else {
+                    this.isDucking = false;
+                    this.height = this.originalHeight;
+                }
+
+                // Jump logic
+                if ((keys[' '] || keys['ArrowUp']) && this.isGrounded && !this.isDucking) {
+                    this.velocity = this.jumpForce;
+                    this.isGrounded = false;
+                }
+
+                // Apply Gravity
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+
+                // Ground Collision
+                const currentGround = 230 - this.height;
+                if (this.y >= currentGround) {
+                    this.y = currentGround;
+                    this.velocity = 0;
+                    this.isGrounded = true;
+                }
+
+                // Leg animation timing
+                this.frameTimer++;
+                if (this.frameTimer % 8 === 0) {
+                    this.legToggle = !this.legToggle;
+                }
+            },
+
+            draw() {
+                ctx.fillStyle = '#535353';
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                if (!this.isDucking) {
+                    // Standing T-Rex Vector Layout
+                    // Body / Torso
+                    ctx.fillRect(10, 12, 24, 20);
+                    // Head
+                    ctx.fillRect(22, 0, 22, 14);
+                    ctx.fillStyle = '#ffffff'; // Eye
+                    ctx.fillRect(26, 3, 3, 3);
+                    ctx.fillStyle = '#535353';
+                    // Snout details
+                    ctx.fillRect(22, 14, 12, 3);
+                    // Arm
+                    ctx.fillRect(34, 18, 6, 3);
+                    // Tail
+                    ctx.fillRect(0, 16, 10, 10);
+                    ctx.fillRect(4, 26, 6, 4);
+
+                    // Running Legs Animation
+                    if (isGameOver) {
+                        // Dead Eyes
+                        ctx.fillStyle = '#535353';
+                        ctx.fillRect(26, 3, 5, 2);
+                        ctx.fillRect(27, 2, 3, 4);
+                        // Standard legs
+                        ctx.fillRect(14, 32, 4, 15);
+                        ctx.fillRect(26, 32, 4, 15);
+                    } else if (this.isGrounded) {
+                        if (this.legToggle) {
+                            ctx.fillRect(14, 32, 4, 15); // Leg 1 down
+                            ctx.fillRect(26, 32, 4, 8);   // Leg 2 up
+                            ctx.fillRect(26, 32, 8, 4);
+                        } else {
+                            ctx.fillRect(14, 32, 4, 8);   // Leg 1 up
+                            ctx.fillRect(14, 32, 8, 4);
+                            ctx.fillRect(26, 32, 4, 15); // Leg 2 down
+                        }
+                    } else {
+                        // Mid-air legs
+                        ctx.fillRect(15, 32, 4, 10);
+                        ctx.fillRect(25, 32, 4, 10);
+                    }
+                } else {
+                    // Ducking T-Rex Vector Layout
+                    ctx.fillRect(0, 4, 34, 16); // Lowered Body
+                    ctx.fillRect(24, 0, 20, 12); // Lowered Head
+                    ctx.fillStyle = '#ffffff';   // Eye
+                    ctx.fillRect(28, 3, 3, 3);
+                    ctx.fillStyle = '#535353';
+                    ctx.fillRect(4, 20, 30, 4);  // Lower body edge
+
+                    // Ducking legs
+                    if (this.legToggle) {
+                        ctx.fillRect(10, 24, 4, 4);
+                        ctx.fillRect(24, 24, 4, 2);
+                    } else {
+                        ctx.fillRect(10, 24, 4, 2);
+                        ctx.fillRect(24, 24, 4, 4);
+                    }
+                }
+                ctx.restore();
+            }
+        };
+
+        // Class: Obstacle (Cactus & Pterodactyl)
+        class Obstacle {
+            constructor() {
+                this.type = Math.random() > 0.3 ? 'cactus' : 'bird';
+                this.x = canvas.width + 50;
+                
+                if (this.type === 'cactus') {
+                    this.width = Math.random() > 0.5 ? 25 : 15; // wide vs narrow cactus
+                    this.height = Math.random() > 0.5 ? 40 : 25; // tall vs short
+                    this.y = 230 - this.height;
+                } else {
+                    // Flying Bird
+                    this.width = 34;
+                    this.height = 24;
+                    // Random heights: Low (duck), Medium (jump), High (clear)
+                    const heights = [140, 175, 200];
+                    this.y = heights[Math.floor(Math.random() * heights.length)];
+                    this.wingToggle = true;
+                }
+            }
+
+            update() {
+                this.x -= gameSpeed;
+                if (this.type === 'bird' && score % 10 === 0) {
